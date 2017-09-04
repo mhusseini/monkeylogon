@@ -1,11 +1,7 @@
-﻿using System.IdentityModel.Tokens.Jwt;
-using System.IO;
-using System.Net;
-using System.Security.Cryptography.X509Certificates;
-using System.Threading.Tasks;
-using AspNet.Security.OpenIdConnect.Primitives;
+﻿using AspNet.Security.OpenIdConnect.Primitives;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -15,17 +11,23 @@ using Microsoft.IdentityModel.Tokens;
 using MonkeyLogon.Data;
 using MonkeyLogon.Models;
 using MonkeyLogon.Services;
-using OpenIddict.Core;
+using System;
+using System.IdentityModel.Tokens.Jwt;
+using System.IO;
+using System.Net;
+using System.Security.Cryptography.X509Certificates;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MonkeyLogon
 {
     public class Startup
     {
-        private IHostingEnvironment env;
+        private readonly IHostingEnvironment environment;
 
         public Startup(IHostingEnvironment env)
         {
-            this.env = env;
+            this.environment = env;
 
             var builder = new ConfigurationBuilder()
                 .SetBasePath(env.ContentRootPath)
@@ -42,9 +44,44 @@ namespace MonkeyLogon
 
         public IConfiguration Configuration { get; }
 
+        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env, IServiceProvider serviceProvider)
+        {
+            if (env.IsDevelopment())
+            {
+                app.UseDeveloperExceptionPage();
+                app.UseBrowserLink();
+                app.UseDatabaseErrorPage();
+            }
+            else
+            {
+                app.UseExceptionHandler("/Home/Error");
+            }
+
+            app.UseStaticFiles();
+
+            app.UseMiddleware<RequestReconstructionMiddleWare>(serviceProvider.GetService<IDataProtectionProvider>());
+
+            app.UseAuthentication();
+
+            app.UseMvc(routes =>
+            {
+                routes.MapRoute(
+                    name: "default",
+                    template: "{controller=Home}/{action=Index}/{id?}");
+            });
+
+            OpenIdDictInitializer.InitializeAsync(app.ApplicationServices, CancellationToken.None).GetAwaiter().GetResult();
+        }
+
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddDataProtection()
+                .SetApplicationName(ApplicationInfo.AppName)
+                .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(this.environment.ContentRootPath, @"keys")))
+                .DisableAutomaticKeyGeneration();
+
             services.AddDbContext<ApplicationDbContext>(options =>
             {
                 options.UseSqlServer(this.Configuration.GetConnectionString("DefaultConnection"));
@@ -55,10 +92,20 @@ namespace MonkeyLogon
                 .AddEntityFrameworkStores<ApplicationDbContext>()
                 .AddDefaultTokenProviders();
 
-            var cert = new X509Certificate2(Path.Combine(this.env.ContentRootPath, "monkeylogon.pfx"), "");
+            var cert = new X509Certificate2(Path.Combine(this.environment.ContentRootPath, "monkeylogon.pfx"), "");
 
             JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
             JwtSecurityTokenHandler.DefaultOutboundClaimTypeMap.Clear();
+
+            // Configure Identity to use the same JWT claims as OpenIddict instead
+            // of the legacy WS-Federation claims it uses by default (ClaimTypes),
+            // which saves you from doing the mapping in your authorization controller.
+            services.Configure<IdentityOptions>(options =>
+            {
+                options.ClaimsIdentity.UserNameClaimType = OpenIdConnectConstants.Claims.Name;
+                options.ClaimsIdentity.UserIdClaimType = OpenIdConnectConstants.Claims.Subject;
+                options.ClaimsIdentity.RoleClaimType = OpenIdConnectConstants.Claims.Role;
+            });
 
             services.AddOpenIddict(options =>
             {
@@ -66,12 +113,14 @@ namespace MonkeyLogon
                 options.AddMvcBinders();
                 options.EnableAuthorizationEndpoint("/account/apilogin")
                     .EnableLogoutEndpoint("/account/logout")
+                    .EnableTokenEndpoint("/account/token")
                     .EnableUserinfoEndpoint("/api/me");
                 options.AllowImplicitFlow();
+                options.AllowAuthorizationCodeFlow();
                 options.UseJsonWebTokens();
                 options.AddSigningCertificate(cert);
 
-                if (this.env.IsDevelopment())
+                if (this.environment.IsDevelopment())
                 {
                     options.DisableHttpsRequirement();
                     options.AddEphemeralSigningKey();
@@ -85,14 +134,14 @@ namespace MonkeyLogon
                 })
                 .AddJwtBearer(options =>
                 {
-                    options.Audience = "monkeylogon";
-                    options.ClaimsIssuer = "monkeylogon";
+                    options.Audience = ApplicationInfo.AppName;
+                    options.ClaimsIssuer = ApplicationInfo.AppName;
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
                         NameClaimType = OpenIdConnectConstants.Claims.Name,
                         RoleClaimType = OpenIdConnectConstants.Claims.Role,
-                        ValidAudience = "monkeylogon",
-                        ValidIssuer = "monkeylogon",
+                        ValidAudience = ApplicationInfo.AppName,
+                        ValidIssuer = ApplicationInfo.GetUrl(),
                         IssuerSigningKey = new RsaSecurityKey(cert.GetRSAPrivateKey().ExportParameters(false))
                     };
                     options.Events = new JwtBearerEvents
@@ -123,32 +172,6 @@ namespace MonkeyLogon
             services.AddTransient<IEmailSender, EmailSender>();
 
             services.AddMvc();
-        }
-
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
-        {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-                app.UseBrowserLink();
-                app.UseDatabaseErrorPage();
-            }
-            else
-            {
-                app.UseExceptionHandler("/Home/Error");
-            }
-
-            app.UseStaticFiles();
-
-            app.UseAuthentication();
-
-            app.UseMvc(routes =>
-            {
-                routes.MapRoute(
-                    name: "default",
-                    template: "{controller=Home}/{action=Index}/{id?}");
-            });
         }
     }
 }

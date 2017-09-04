@@ -1,10 +1,5 @@
-﻿@using System.Collections.Generic
-@using System.Linq
-@using Microsoft.AspNetCore.Http
-@using Microsoft.AspNetCore.Http.Authentication
+﻿@using System.Linq
 @using MonkeyLogon.Models
-@using MonkeyLogon.Models.AccountViewModels
-@model MonkeyLogon.Models.AccountViewModels.LoginViewModel
 @inject SignInManager<ApplicationUser> SignInManager
 
 @{
@@ -30,7 +25,10 @@
                 }
                 else
                 {
-                    <form asp-action="ExternalLogin" asp-route-returnurl="@ViewData["ReturnUrl"]" method="post" class="form-horizontal">
+                    <form asp-action="ExternalLogin" 
+                          asp-route-state="@ViewData["State"]" 
+                          asp-route-returnurl="@ViewData["ReturnUrl"]"
+                          method="post" class="form-horizontal">
                         <div>
                             <p>
                                 @foreach (var provider in loginProviders)

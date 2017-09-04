@@ -1,9 +1,6 @@
-﻿using System.IO;
-using System.Linq;
-using Microsoft.AspNetCore;
+﻿using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
-using System.Net;
-using System.Net.Sockets;
+using System.IO;
 using System.Security.Cryptography.X509Certificates;
 
 namespace MonkeyLogon
@@ -14,15 +11,10 @@ namespace MonkeyLogon
             WebHost.CreateDefaultBuilder(args)
                 .UseKestrel(options =>
                 {
-                    foreach (var ipAddress in from address in Dns.GetHostEntry(Dns.GetHostName()).AddressList
-                                              where address.AddressFamily == AddressFamily.InterNetwork
-                                              select address)
-                    {
-                        options.Listen(ipAddress, 50162);
-                        options.Listen(ipAddress, 50163, listenOptions =>
-                            listenOptions.UseHttps(new X509Certificate2("monkeylogon.pfx", ""))
-                        );
-                    }
+                    options.Listen(ApplicationInfo.IpAddress, ApplicationInfo.HttpPort);
+                    options.Listen(ApplicationInfo.IpAddress, ApplicationInfo.HttpsPort, listenOptions =>
+                        listenOptions.UseHttps(new X509Certificate2("monkeylogon.pfx", ""))
+                    );
                 })
                 .UseContentRoot(Directory.GetCurrentDirectory())
                 .UseStartup<Startup>()
