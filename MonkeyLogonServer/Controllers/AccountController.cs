@@ -8,13 +8,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MonkeyLogon.Extensions;
+using MonkeyLogon.Helpers;
 using MonkeyLogon.Models;
 using MonkeyLogon.Models.AccountViewModels;
 using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using AspNet.Security.OpenIdConnect.Server;
 
 namespace MonkeyLogon.Controllers
 {
@@ -45,66 +45,20 @@ namespace MonkeyLogon.Controllers
         [TempData]
         public string ErrorMessage { get; set; }
 
-        [HttpGet]
+        [HttpGet("~/account/authorize")]
         [AllowAnonymous]
-        public async Task<IActionResult> Authorize(OpenIdConnectRequest request, [FromQuery(Name = "a")]string action = null, string remoteError = null)
+        public IActionResult Authorize(OpenIdConnectRequest request, string remoteError = null)
         {
-            if (action == "excb" || !string.IsNullOrWhiteSpace(remoteError))
-            {
-                return await this.ExternalLoginCallback(request.RedirectUri, remoteError, JwtBearerDefaults.AuthenticationScheme);
-            }
-
             this.ViewData["State"] = this.dataProtectionProvider.ProtectQueryString(this.Request.Query);
 
             return this.View(nameof(this.Login));
         }
 
-        [HttpPost]
-        [Produces("application/json")]
-        public async Task<IActionResult> Token(OpenIdConnectRequest request)
+        [HttpGet("~/account/authorize"), QueryStringRequired("a")]
+        [AllowAnonymous]
+        public async Task<IActionResult> AuthorizedExternal(OpenIdConnectRequest request, string remoteError = null)
         {
-            if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType())
-            {
-                return this.BadRequest(new OpenIdConnectResponse
-                {
-                    Error = OpenIdConnectConstants.Errors.UnsupportedGrantType,
-                    ErrorDescription = "The specified grant type is not supported."
-                });
-            }
-
-            // Retrieve the claims principal stored in the authorization code/refresh token.
-            var info = await this.HttpContext.AuthenticateAsync(OpenIdConnectServerDefaults.AuthenticationScheme);
-
-            // Retrieve the user profile corresponding to the authorization code/refresh token.
-            // Note: if you want to automatically invalidate the authorization code/refresh token
-            // when the user password/roles change, use the following line instead:
-            // var user = _signInManager.ValidateSecurityStampAsync(info.Principal);
-            var user = await this.userManager.GetUserAsync(info.Principal);
-            if (user == null)
-            {
-                return this.BadRequest(new OpenIdConnectResponse
-                {
-                    Error = OpenIdConnectConstants.Errors.InvalidGrant,
-                    ErrorDescription = "The token is no longer valid."
-                });
-            }
-
-            // Ensure the user is still allowed to sign in.
-            if (!await this.signInManager.CanSignInAsync(user))
-            {
-                return this.BadRequest(new OpenIdConnectResponse
-                {
-                    Error = OpenIdConnectConstants.Errors.InvalidGrant,
-                    ErrorDescription = "The user is no longer allowed to sign in."
-                });
-            }
-
-            // Create a new authentication ticket, but reuse the properties stored in the
-            // authorization code/refresh token, including the scopes originally granted.
-            var principal = await this.signInManager.CreateUserPrincipalAsync(user);
-            var ticket = principal.CreateAuthenticationTicket(this.identityOptions.ClaimsIdentity.SecurityStampClaimType);
-
-            return this.SignIn(ticket.Principal, ticket.Properties, ticket.AuthenticationScheme);
+            return await this.ExternalLoginCallback(request.RedirectUri, remoteError, JwtBearerDefaults.AuthenticationScheme);
         }
 
         [HttpPost]
@@ -118,15 +72,6 @@ namespace MonkeyLogon.Controllers
                 : this.CreateReconstructableRedirectUrl(state);
             var properties = this.signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
             return this.Challenge(properties, provider);
-        }
-
-        private string CreateReconstructableRedirectUrl(string state)
-        {
-            return this.Url.Action(nameof(this.Authorize), "Account", new Dictionary<string, string>
-            {
-                {"a", "excb"},
-                {DataProtectionProviderExtensions.StateQuerystringKey, state}
-            });
         }
 
         [HttpGet]
@@ -228,6 +173,15 @@ namespace MonkeyLogon.Controllers
             await this.signInManager.SignOutAsync();
             this.logger.LogInformation("User logged out.");
             return this.RedirectToAction(nameof(HomeController.Index), "Home");
+        }
+
+        private string CreateReconstructableRedirectUrl(string state)
+        {
+            return this.Url.Action(nameof(this.AuthorizedExternal), "Account", new Dictionary<string, string>
+            {
+                {"a", "excb"},
+                {DataProtectionProviderExtensions.StateQuerystringKey, state}
+            });
         }
 
         private async Task<IActionResult> SignInWithOpenIdDict(ApplicationUser user)

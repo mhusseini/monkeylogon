@@ -113,10 +113,8 @@ namespace MonkeyLogon
                     .AddMvcBinders()
                     .EnableAuthorizationEndpoint("/account/authorize")
                     .EnableLogoutEndpoint("/account/logout")
-                    .EnableTokenEndpoint("/account/token")
                     .EnableUserinfoEndpoint("/api/me")
                     .AllowImplicitFlow()
-                    .AllowAuthorizationCodeFlow()
                     .UseJsonWebTokens()
                     .AddSigningCertificate(cert);
 
