@@ -45,28 +45,7 @@ namespace MonkeyLogon
 
                     await manager.CreateAsync(application, cancellationToken);
                 }
-
-                // To test this sample with Postman, use the following settings:
-                //
-                // * Authorization URL: https://192.168.178.21:50163/account/apilogin
-                // * Client ID: postman
-                // * Client secret: [blank] (not used with public clients)
-                // * Scope: openid email profile roles
-                // * Grant type: authorization code
-                // * Request access token locally: yes
-                if (await manager.FindByClientIdAsync("postman", cancellationToken) == null)
-                {
-                    var application = new OpenIddictApplication
-                    {
-                        ClientId = "postman",
-                        DisplayName = "Postman",
-                        RedirectUri = "https://www.getpostman.com/oauth2/callback"
-                    };
-
-                    await manager.CreateAsync(application, cancellationToken);
-                }
             }
         }
-
     }
 }
