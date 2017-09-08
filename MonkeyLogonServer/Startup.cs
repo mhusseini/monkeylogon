@@ -109,16 +109,16 @@ namespace MonkeyLogon
 
             services.AddOpenIddict(options =>
             {
-                options.AddEntityFrameworkCoreStores<ApplicationDbContext>();
-                options.AddMvcBinders();
-                options.EnableAuthorizationEndpoint("/account/apilogin")
+                options.AddEntityFrameworkCoreStores<ApplicationDbContext>()
+                    .AddMvcBinders()
+                    .EnableAuthorizationEndpoint("/account/authorize")
                     .EnableLogoutEndpoint("/account/logout")
                     .EnableTokenEndpoint("/account/token")
-                    .EnableUserinfoEndpoint("/api/me");
-                options.AllowImplicitFlow();
-                options.AllowAuthorizationCodeFlow();
-                options.UseJsonWebTokens();
-                options.AddSigningCertificate(cert);
+                    .EnableUserinfoEndpoint("/api/me")
+                    .AllowImplicitFlow()
+                    .AllowAuthorizationCodeFlow()
+                    .UseJsonWebTokens()
+                    .AddSigningCertificate(cert);
 
                 if (this.environment.IsDevelopment())
                 {

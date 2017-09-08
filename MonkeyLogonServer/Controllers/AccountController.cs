@@ -47,7 +47,7 @@ namespace MonkeyLogon.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> ApiLogin(OpenIdConnectRequest request, [FromQuery(Name = "a")]string action = null, string remoteError = null)
+        public async Task<IActionResult> Authorize(OpenIdConnectRequest request, [FromQuery(Name = "a")]string action = null, string remoteError = null)
         {
             if (action == "excb" || !string.IsNullOrWhiteSpace(remoteError))
             {
@@ -122,7 +122,7 @@ namespace MonkeyLogon.Controllers
 
         private string CreateReconstructableRedirectUrl(string state)
         {
-            return this.Url.Action(nameof(this.ApiLogin), "Account", new Dictionary<string, string>
+            return this.Url.Action(nameof(this.Authorize), "Account", new Dictionary<string, string>
             {
                 {"a", "excb"},
                 {DataProtectionProviderExtensions.StateQuerystringKey, state}
