@@ -56,7 +56,7 @@ namespace MonkeyLogon.Controllers
 
         [HttpGet("~/account/authorize"), QueryStringRequired("a")]
         [AllowAnonymous]
-        public async Task<IActionResult> AuthorizedExternal(OpenIdConnectRequest request, string remoteError = null)
+        public async Task<IActionResult> ExternalLoginCallbackEmbedded(OpenIdConnectRequest request, string remoteError = null)
         {
             return await this.ExternalLoginCallback(request.RedirectUri, remoteError, JwtBearerDefaults.AuthenticationScheme);
         }
@@ -177,7 +177,7 @@ namespace MonkeyLogon.Controllers
 
         private string CreateReconstructableRedirectUrl(string state)
         {
-            return this.Url.Action(nameof(this.AuthorizedExternal), "Account", new Dictionary<string, string>
+            return this.Url.Action(nameof(this.ExternalLoginCallbackEmbedded), "Account", new Dictionary<string, string>
             {
                 {"a", "excb"},
                 {DataProtectionProviderExtensions.StateQuerystringKey, state}
